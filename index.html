@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0b0f1a" />
+  <meta name="description" content="Split large files into parts and merge them back — 100% in your browser. No upload, no server, total privacy." />
+  <title>File Splitter &amp; Merger — Client-side, Private</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✂️</text></svg>" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Ambient background blobs -->
+  <div class="bg-orb orb-1" aria-hidden="true"></div>
+  <div class="bg-orb orb-2" aria-hidden="true"></div>
+  <div class="bg-orb orb-3" aria-hidden="true"></div>
+
+  <header class="app-header">
+    <div class="logo">
+      <span class="logo-icon">✂️</span>
+      <div>
+        <h1>File Splitter <span class="accent">&amp;</span> Merger</h1>
+        <p class="tagline">100% client-side · Nothing leaves your device</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Tabs -->
+    <nav class="tabs glass" role="tablist" aria-label="Mode">
+      <button class="tab active" role="tab" aria-selected="true" aria-controls="panel-split" id="tab-split" data-tab="split">
+        <span class="tab-icon">🔪</span> Split File
+      </button>
+      <button class="tab" role="tab" aria-selected="false" aria-controls="panel-merge" id="tab-merge" data-tab="merge">
+        <span class="tab-icon">🧩</span> Merge Parts
+      </button>
+      <span class="tab-indicator" aria-hidden="true"></span>
+    </nav>
+
+    <!-- ===================== SPLIT PANEL ===================== -->
+    <section class="panel active" id="panel-split" role="tabpanel" aria-labelledby="tab-split">
+
+      <!-- Drop zone -->
+      <div class="dropzone glass" id="split-dropzone" tabindex="0" role="button" aria-label="Select a file to split">
+        <input type="file" id="split-file-input" hidden />
+        <div class="dz-content">
+          <div class="dz-icon">📂</div>
+          <p class="dz-title">Drag &amp; drop a file here</p>
+          <p class="dz-sub">or</p>
+          <button type="button" class="btn btn-primary" id="split-pick-btn">Choose File</button>
+          <p class="dz-hint">Any format: TXT · EPUB · ZIP · MP4 · APK · PDF …</p>
+        </div>
+      </div>
+
+      <!-- File info -->
+      <div class="file-card glass hidden" id="split-file-card">
+        <div class="file-icon" id="split-file-icon">📄</div>
+        <div class="file-meta">
+          <p class="file-name" id="split-file-name">—</p>
+          <p class="file-details">
+            <span id="split-file-size">—</span>
+            <span class="dot">•</span>
+            <span id="split-file-type">—</span>
+          </p>
+        </div>
+        <button type="button" class="icon-btn" id="split-remove-file" title="Remove file" aria-label="Remove file">✕</button>
+      </div>
+
+      <!-- Split options -->
+      <div class="glass options hidden" id="split-options">
+        <h2 class="section-title">Split Method</h2>
+
+        <div class="segmented" role="radiogroup" aria-label="Split method">
+          <label class="seg">
+            <input type="radio" name="split-mode" value="size" checked />
+            <span>By Chunk Size</span>
+          </label>
+          <label class="seg">
+            <input type="radio" name="split-mode" value="count" />
+            <span>By Number of Parts</span>
+          </label>
+        </div>
+
+        <!-- Mode: size -->
+        <div class="mode-block" id="mode-size">
+          <div class="chip-row" id="size-presets">
+            <button type="button" class="chip" data-mb="5">5 MB</button>
+            <button type="button" class="chip active" data-mb="10">10 MB</button>
+            <button type="button" class="chip" data-mb="25">25 MB</button>
+            <button type="button" class="chip" data-mb="50">50 MB</button>
+            <button type="button" class="chip" data-mb="100">100 MB</button>
+            <button type="button" class="chip" data-mb="500">500 MB</button>
+          </div>
+          <div class="input-row">
+            <label for="custom-size" class="sr-only">Custom size</label>
+            <input type="number" id="custom-size" min="1" step="any" value="10" inputmode="decimal" placeholder="Custom size" />
+            <select id="custom-unit" aria-label="Unit">
+              <option value="KB">KB</option>
+              <option value="MB" selected>MB</option>
+              <option value="GB">GB</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Mode: count -->
+        <div class="mode-block hidden" id="mode-count">
+          <div class="chip-row" id="count-presets">
+            <button type="button" class="chip active" data-n="2">2</button>
+            <button type="button" class="chip" data-n="3">3</button>
+            <button type="button" class="chip" data-n="5">5</button>
+            <button type="button" class="chip" data-n="10">10</button>
+            <button type="button" class="chip" data-n="20">20</button>
+          </div>
+          <div class="input-row">
+            <label for="custom-count" class="sr-only">Number of parts</label>
+            <input type="number" id="custom-count" min="2" max="10000" step="1" value="2" inputmode="numeric" placeholder="Number of parts" />
+            <span class="input-suffix">parts</span>
+          </div>
+        </div>
+
+        <!-- Text-only option -->
+        <label class="checkbox hidden" id="linebreak-wrap">
+          <input type="checkbox" id="linebreak-check" />
+          <span class="checkmark"></span>
+          <span>
+            <strong>Split cleanly at line breaks</strong>
+            <small>Text file detected — parts will end at a newline so words are never cut in half.</small>
+          </span>
+        </label>
+
+        <!-- Live summary -->
+        <div class="summary" id="split-summary">
+          <div class="summary-item">
+            <span class="summary-label">Total parts</span>
+            <span class="summary-value" id="sum-parts">—</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Each part</span>
+            <span class="summary-value" id="sum-size">—</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Last part</span>
+            <span class="summary-value" id="sum-last">—</span>
+          </div>
+        </div>
+        <p class="warn hidden" id="split-warning"></p>
+
+        <div class="actions">
+          <button type="button" class="btn btn-primary btn-lg" id="split-btn">⚡ Prepare Parts</button>
+          <button type="button" class="btn btn-ghost" id="split-reset-btn">Clear / Reset</button>
+        </div>
+      </div>
+
+      <!-- Progress (line-break scanning) -->
+      <div class="glass progress-card hidden" id="split-progress">
+        <p id="split-progress-label">Scanning for line breaks…</p>
+        <div class="progress-bar"><div class="progress-fill" id="split-progress-fill"></div></div>
+      </div>
+
+      <!-- Parts list -->
+      <div class="glass parts-section hidden" id="parts-section">
+        <div class="parts-head">
+          <h2 class="section-title">Parts <span class="badge" id="parts-count-badge">0</span></h2>
+          <div class="parts-head-actions">
+            <button type="button" class="btn btn-sm" id="download-all-btn" title="Downloads parts one by one">⬇ Download All</button>
+          </div>
+        </div>
+        <p class="info-text">Each part is sliced from the file only when you click download — no RAM overload. Files are not uploaded anywhere.</p>
+        <div class="progress-mini">
+          <div class="progress-bar"><div class="progress-fill" id="parts-progress-fill"></div></div>
+          <span id="parts-progress-text">0 / 0 downloaded</span>
+        </div>
+        <ul class="parts-list" id="parts-list"></ul>
+      </div>
+    </section>
+
+    <!-- ===================== MERGE PANEL ===================== -->
+    <section class="panel" id="panel-merge" role="tabpanel" aria-labelledby="tab-merge" hidden>
+
+      <div class="dropzone glass" id="merge-dropzone" tabindex="0" role="button" aria-label="Select part files to merge">
+        <input type="file" id="merge-file-input" multiple hidden />
+        <div class="dz-content">
+          <div class="dz-icon">🧩</div>
+          <p class="dz-title">Drop all <code>.part001</code>, <code>.part002</code>… files</p>
+          <p class="dz-sub">or</p>
+          <button type="button" class="btn btn-primary" id="merge-pick-btn">Choose Parts</button>
+          <p class="dz-hint">Select in any order — we sort them automatically. You can add more later.</p>
+        </div>
+      </div>
+
+      <div class="glass parts-section hidden" id="merge-section">
+        <div class="parts-head">
+          <h2 class="section-title">Selected Parts <span class="badge" id="merge-count-badge">0</span></h2>
+          <button type="button" class="btn btn-sm btn-ghost" id="merge-add-more">+ Add more</button>
+        </div>
+
+        <div class="summary">
+          <div class="summary-item wide">
+            <span class="summary-label">Output file</span>
+            <span class="summary-value mono ellipsis" id="merge-output-name">—</span>
+          </div>
+          <div class="summary-item">
+            <span class="summary-label">Total size</span>
+            <span class="summary-value" id="merge-total-size">—</span>
+          </div>
+        </div>
+        <p class="warn hidden" id="merge-warning"></p>
+
+        <ul class="parts-list" id="merge-list"></ul>
+
+        <div class="actions">
+          <button type="button" class="btn btn-primary btn-lg" id="merge-btn">🧬 Merge &amp; Download</button>
+          <button type="button" class="btn btn-ghost" id="merge-reset-btn">Clear / Reset</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Built with HTML5 File API + <code>Blob.slice()</code>. Works offline. Open source on
+      <a href="https://github.com/Nitesh99390/Filesplitter" target="_blank" rel="noopener">GitHub</a>.</p>
+  </footer>
+
+  <!-- Toast -->
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
