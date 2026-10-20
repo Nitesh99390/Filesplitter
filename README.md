@@ -65,40 +65,96 @@ Result: multi-GB files can be split on a phone without crashing the tab.
 | Styling    | Hand-written responsive CSS (dark glassmorphism, no framework) |
 | Logic      | Vanilla JavaScript (ES2020), HTML5 File API, `Blob.slice()`, ObjectURLs |
 | Backend    | **None** — static files only                   |
+| Build      | terser + javascript-obfuscator · clean-css · html-minifier-terser |
+| Tests      | Playwright (Chromium) end-to-end                |
 
 ```
 .
-├── index.html   # structure: tabs, drop zones, split/merge panels
-├── style.css    # mobile-first neo-glassmorphism dark theme
-├── app.js       # all application logic
-└── README.md
+├── index.html / style.css / app.js   # PRODUCTION bundle (generated — do not edit)
+├── src/
+│   ├── index.html                    # readable source: tabs, drop zones, panels
+│   ├── style.css                     # mobile-first neo-glassmorphism dark theme
+│   └── app.js                        # all application logic (+ host check)
+├── scripts/
+│   ├── build.mjs                     # src/ → minified / obfuscated root files
+│   └── serve.mjs                     # tiny static server (dev + tests)
+├── tests/e2e.spec.mjs                # Playwright: split → merge → byte-identical
+├── playwright.config.mjs
+└── ci/github-ci.yml                  # GitHub Actions workflow (build, drift check, e2e)
 ```
 
 ---
 
-## 🚀 Run locally
+## 🏗 Development & build
 
-It is a static site — just open `index.html` in a browser, or serve the folder:
+The files at the repository root are **generated**. Edit only `src/`, then rebuild:
 
 ```bash
-# Python
-python3 -m http.server 8080
-# or Node
-npx serve .
+npm ci               # once
+npm run dev          # serve the readable src/ at http://localhost:8080
+npm run build        # src/ → index.html, style.css, app.js (root)
+npm run serve        # serve the production bundle at http://localhost:8080
+npm test             # build + Playwright e2e suite (16 tests)
 ```
 
-Then visit `http://localhost:8080`.
+What the build does:
+
+| File         | Steps                                                                                                   |
+|--------------|---------------------------------------------------------------------------------------------------------|
+| `index.html` | html-minifier-terser: whitespace/comments stripped, attributes sorted, `?v=<hash>` cache-busting on assets, `defer` on the script |
+| `style.css`  | clean-css level 2 (rule restructuring / semantic merging)                                               |
+| `app.js`     | terser (safe compress + mangle, ES2020) → javascript-obfuscator (base64 string array, rotation/shuffle, hex identifiers, object-key transform). Debug-protection / self-defending / control-flow-flattening are intentionally **off** — they hurt low-end phones and DevTools and give little extra value. The build is deterministic (fixed seed), so CI can verify the committed bundle matches `src/`. |
+
+> The obfuscation is readability protection against casual visitors, not DRM — anything that runs in a browser can ultimately be reverse-engineered.
+
+### 🛡 Host check
+
+`src/app.js` contains an allow-list of hosting environments. On any other hostname the UI still renders but the
+*Prepare Parts*, *Download* and *Merge* actions are disabled and a notice is shown.
+
+| Allowed                       | Why                     |
+|-------------------------------|-------------------------|
+| `*.pages.dev`                 | Cloudflare Pages        |
+| `*.onrender.com`              | Render                  |
+| `*.github.io`                 | GitHub Pages            |
+| `localhost`, `*.localhost`, `127.0.0.1`, `[::1]`, `0.0.0.0`, `file://` | local development |
+
+To add your own domain, append it to `ALLOWED_HOSTS` in `src/app.js` (exact hostname or `*.example.com`) and run `npm run build`.
 
 ---
 
-## 🌐 Deploy to GitHub Pages
+## 🧪 Tests
 
-1. Push this repository to GitHub (`main` branch).
-2. Go to **Settings → Pages**.
-3. Under **Build and deployment**, choose **Deploy from a branch**, select `main` and the `/ (root)` folder.
-4. Save — your app will be live at `https://<username>.github.io/Filesplitter/`.
+`tests/e2e.spec.mjs` runs against the **built** bundle and fails on any `console.error`, uncaught exception or failed request:
 
-No build step is needed.
+- split by chunk size → download every part → merge in reverse order → SHA-256 identical to the original
+- split by equal part count (remainder spread, sizes differ by ≤ 1 byte) → merge → identical
+- text file in line-break mode → every part ends with `\n`, each part is whole lines → merge → identical
+- *Download All* downloads every pending part
+- merge validation: parts of different files are blocked, missing part numbers are warned, non-part files skipped
+- reset clears state
+- host check: allowed hosts (`*.pages.dev`, `*.onrender.com`, `*.github.io`, `localhost`, `127.0.0.1`) run normally; `pages.dev` (bare), `notgithub.io`, `fakeonrender.com`, arbitrary domains are locked gracefully
+
+---
+
+## 🌐 Deploy
+
+No server-side build step is required — the production bundle is committed.
+
+**GitHub Pages**
+1. Push to `main`.
+2. **Settings → Pages → Deploy from a branch** → `main` / `/ (root)`.
+3. Live at `https://<username>.github.io/Filesplitter/`.
+
+**Cloudflare Pages / Render (static site)** — connect the repo, leave the build command empty, publish directory `/`.
+
+**CI** — a ready-made GitHub Actions workflow lives at `ci/github-ci.yml`. It builds, verifies the committed bundle is in sync with `src/` (`git diff --exit-code`), and runs the e2e suite on every push and PR. To enable it:
+
+```bash
+mkdir -p .github/workflows && git mv ci/github-ci.yml .github/workflows/ci.yml
+```
+
+(It is shipped outside `.github/workflows/` because the automation token used to open this PR is not allowed to create workflow files.)
 
 ---
 
